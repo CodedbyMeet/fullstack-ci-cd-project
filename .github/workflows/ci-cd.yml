@@ -23,25 +23,26 @@ jobs:
       - name: Build and push frontend image
         uses: docker/build-push-action@v6
         with:
-          context: ./frontend
+          context: ./fullstack-cicd-project/frontend
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/frontend:latest
 
       - name: Build and push backend image
         uses: docker/build-push-action@v6
         with:
-          context: ./backend
+          context: ./fullstack-cicd-project/backend
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/backend:latest
 
-      - name: Copy docker-compose and nginx config to EC2
+      - name: Copy deployment files to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.AWS_HOST }}
           username: ${{ secrets.AWS_USERNAME }}
           key: ${{ secrets.AWS_PRIVATE_KEY }}
-          source: "docker-compose.yml,nginx/default.conf"
+          source: "fullstack-cicd-project/docker-compose-live.yml,fullstack-cicd-project/nginx/default.conf"
           target: "/home/ubuntu/app"
+          strip_components: 1
 
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
@@ -50,16 +51,13 @@ jobs:
           username: ${{ secrets.AWS_USERNAME }}
           key: ${{ secrets.AWS_PRIVATE_KEY }}
           script: |
-            mkdir -p /home/ubuntu/app
             cd /home/ubuntu/app
 
-            docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+            docker login -u "${{ secrets.DOCKER_USERNAME }}" -p "${{ secrets.DOCKER_PASSWORD }}"
 
-            docker pull ${{ secrets.DOCKER_USERNAME }}/frontend:latest
-            docker pull ${{ secrets.DOCKER_USERNAME }}/backend:latest
-
-            docker compose down
-            docker compose up -d
+            docker compose -f docker-compose-live.yml pull
+            docker compose -f docker-compose-live.yml up -d
 
             docker image prune -f
+
 
